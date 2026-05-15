@@ -25,7 +25,7 @@ env:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       pull-requests: write
     steps:
@@ -79,21 +79,24 @@ jobs:
           ENV_NAME: ${{ steps.ctx.outputs.env_name }}
         run: |
           set -euo pipefail
-          EXISTING=$(curl -sf -X POST "$RAILWAY_API" \
+          LOOKUP=$(curl -sS -X POST "$RAILWAY_API" \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg pid "$RAILWAY_PROJECT_ID" '{
-              query: "query($pid: String!) { environments(projectId: $pid) { edges { node { id name } } } }",
+              query: "query($pid: String!) { project(id: $pid) { environments { edges { node { id name } } } } }",
               variables: { pid: $pid }
-            }')" \
-            | jq -r --arg name "$ENV_NAME" \
-              '.data.environments.edges[] | select(.node.name==$name) | .node.id' | head -n1)
+            }')")
+          echo "::group::lookup response"
+          echo "$LOOKUP"
+          echo "::endgroup::"
+          EXISTING=$(echo "$LOOKUP" | jq -r --arg name "$ENV_NAME" \
+            '.data.project.environments.edges[]? | select(.node.name==$name) | .node.id' | head -n1)
 
           if [ -n "$EXISTING" ]; then
             ENV_ID="$EXISTING"
             echo "Reusing env $ENV_ID"
           else
-            ENV_ID=$(curl -sf -X POST "$RAILWAY_API" \
+            CREATE=$(curl -sS -X POST "$RAILWAY_API" \
               -H "Authorization: Bearer $RAILWAY_TOKEN" \
               -H "Content-Type: application/json" \
               -d "$(jq -n \
@@ -102,8 +105,15 @@ jobs:
                 --arg src "$RAILWAY_BASE_ENV_ID" '{
                   query: "mutation($input: EnvironmentCreateInput!) { environmentCreate(input: $input) { id } }",
                   variables: { input: { name: $name, projectId: $pid, sourceEnvironmentId: $src, ephemeral: true } }
-                }')" \
-              | jq -r '.data.environmentCreate.id')
+                }')")
+            echo "::group::create response"
+            echo "$CREATE"
+            echo "::endgroup::"
+            ENV_ID=$(echo "$CREATE" | jq -r '.data.environmentCreate.id // empty')
+            if [ -z "$ENV_ID" ]; then
+              echo "::error::environmentCreate failed — see response above"
+              exit 1
+            fi
             echo "Created env $ENV_ID"
           fi
           echo "id=$ENV_ID" >>"$GITHUB_OUTPUT"
@@ -116,7 +126,7 @@ jobs:
           BRANCH: ${{ steps.ctx.outputs.branch }}
         run: |
           set -euo pipefail
-          curl -sf -X POST "$RAILWAY_API" \
+          RESP=$(curl -sS -X POST "$RAILWAY_API" \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
@@ -126,7 +136,11 @@ jobs:
               --arg branch "$BRANCH" '{
                 query: "mutation($eid: String!, $sid: String!, $input: ServiceInstanceUpdateInput!) { serviceInstanceUpdate(environmentId: $eid, serviceId: $sid, input: $input) }",
                 variables: { eid: $eid, sid: $sid, input: { source: { repo: $repo, branch: $branch } } }
-              }')" | jq -e '.data.serviceInstanceUpdate' >/dev/null
+              }')")
+          echo "::group::serviceInstanceUpdate (my service) response"
+          echo "$RESP"
+          echo "::endgroup::"
+          echo "$RESP" | jq -e '.data.serviceInstanceUpdate != null' >/dev/null
 
       - name: Point peer service at matching branch (if paired PR is open)
         if: github.event.action != 'closed' && steps.paired.outputs.open_count != '0'
@@ -136,7 +150,7 @@ jobs:
           BRANCH: ${{ steps.ctx.outputs.branch }}
         run: |
           set -euo pipefail
-          curl -sf -X POST "$RAILWAY_API" \
+          RESP=$(curl -sS -X POST "$RAILWAY_API" \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
@@ -146,7 +160,11 @@ jobs:
               --arg branch "$BRANCH" '{
                 query: "mutation($eid: String!, $sid: String!, $input: ServiceInstanceUpdateInput!) { serviceInstanceUpdate(environmentId: $eid, serviceId: $sid, input: $input) }",
                 variables: { eid: $eid, sid: $sid, input: { source: { repo: $repo, branch: $branch } } }
-              }')" | jq -e '.data.serviceInstanceUpdate' >/dev/null
+              }')")
+          echo "::group::serviceInstanceUpdate (peer service) response"
+          echo "$RESP"
+          echo "::endgroup::"
+          echo "$RESP" | jq -e '.data.serviceInstanceUpdate != null' >/dev/null
 
       - name: Trigger deploy for my service
         if: github.event.action != 'closed'
@@ -155,7 +173,7 @@ jobs:
           ENV_ID: ${{ steps.env.outputs.id }}
         run: |
           set -euo pipefail
-          curl -sf -X POST "$RAILWAY_API" \
+          RESP=$(curl -sS -X POST "$RAILWAY_API" \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
@@ -163,7 +181,11 @@ jobs:
               --arg sid "$MY_SERVICE_ID" '{
                 query: "mutation($eid: String!, $sid: String!) { serviceInstanceDeploy(environmentId: $eid, serviceId: $sid) }",
                 variables: { eid: $eid, sid: $sid }
-              }')" | jq -e '.data.serviceInstanceDeploy' >/dev/null
+              }')")
+          echo "::group::serviceInstanceDeploy response"
+          echo "$RESP"
+          echo "::endgroup::"
+          echo "$RESP" | jq -e '.data.serviceInstanceDeploy != null' >/dev/null
 
       - name: Comment env link on PR
         if: github.event.action == 'opened' && steps.env.outputs.id != ''

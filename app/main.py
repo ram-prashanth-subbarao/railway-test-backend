@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine
-from app.routers import todos
+from app.routers import comments, todos
 
 
 @asynccontextmanager
@@ -15,6 +15,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Todo API", version="0.1.0", lifespan=lifespan)
 
+# gsgs
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,6 +25,7 @@ app.add_middleware(
 )
 
 app.include_router(todos.router)
+app.include_router(comments.router)
 
 
 @app.get("/health", tags=["health"])

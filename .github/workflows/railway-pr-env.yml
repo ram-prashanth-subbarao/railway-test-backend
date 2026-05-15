@@ -80,7 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           LOOKUP=$(curl -sS -X POST "$RAILWAY_API" \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg pid "$RAILWAY_PROJECT_ID" '{
               query: "query($pid: String!) { project(id: $pid) { environments { edges { node { id name } } } } }",
@@ -97,7 +97,7 @@ jobs:
             echo "Reusing env $ENV_ID"
           else
             CREATE=$(curl -sS -X POST "$RAILWAY_API" \
-              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Project-Access-Token: $RAILWAY_TOKEN" \
               -H "Content-Type: application/json" \
               -d "$(jq -n \
                 --arg name "$ENV_NAME" \
@@ -127,7 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           curl -sf -X POST "$RAILWAY_API" \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
               --arg eid "$ENV_ID" \
@@ -147,7 +147,7 @@ jobs:
         run: |
           set -euo pipefail
           curl -sf -X POST "$RAILWAY_API" \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
               --arg eid "$ENV_ID" \
@@ -166,7 +166,7 @@ jobs:
         run: |
           set -euo pipefail
           curl -sf -X POST "$RAILWAY_API" \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
               --arg eid "$ENV_ID" \
@@ -205,7 +205,7 @@ jobs:
             exit 0
           fi
           ENV_ID=$(curl -sf -X POST "$RAILWAY_API" \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg pid "$RAILWAY_PROJECT_ID" '{
               query: "query($pid: String!) { environments(projectId: $pid) { edges { node { id name } } } }",
@@ -218,7 +218,7 @@ jobs:
             exit 0
           fi
           curl -sf -X POST "$RAILWAY_API" \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg eid "$ENV_ID" '{
               query: "mutation($eid: String!) { environmentDelete(id: $eid) }",

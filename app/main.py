@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine
-from app.routers import todos
+from app.routers import comments, todos
 
 
 @asynccontextmanager
@@ -24,6 +24,7 @@ app.add_middleware(
 )
 
 app.include_router(todos.router)
+app.include_router(comments.router)
 
 
 @app.get("/health", tags=["health"])

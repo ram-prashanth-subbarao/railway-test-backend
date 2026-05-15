@@ -126,7 +126,7 @@ jobs:
           BRANCH: ${{ steps.ctx.outputs.branch }}
         run: |
           set -euo pipefail
-          curl -sf -X POST "$RAILWAY_API" \
+          RESP=$(curl -sS -X POST "$RAILWAY_API" \
             -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
@@ -136,7 +136,11 @@ jobs:
               --arg branch "$BRANCH" '{
                 query: "mutation($eid: String!, $sid: String!, $input: ServiceInstanceUpdateInput!) { serviceInstanceUpdate(environmentId: $eid, serviceId: $sid, input: $input) }",
                 variables: { eid: $eid, sid: $sid, input: { source: { repo: $repo, branch: $branch } } }
-              }')" | jq -e '.data.serviceInstanceUpdate' >/dev/null
+              }')")
+          echo "::group::serviceInstanceUpdate (my service) response"
+          echo "$RESP"
+          echo "::endgroup::"
+          echo "$RESP" | jq -e '.data.serviceInstanceUpdate != null' >/dev/null
 
       - name: Point peer service at matching branch (if paired PR is open)
         if: github.event.action != 'closed' && steps.paired.outputs.open_count != '0'
@@ -146,7 +150,7 @@ jobs:
           BRANCH: ${{ steps.ctx.outputs.branch }}
         run: |
           set -euo pipefail
-          curl -sf -X POST "$RAILWAY_API" \
+          RESP=$(curl -sS -X POST "$RAILWAY_API" \
             -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
@@ -156,7 +160,11 @@ jobs:
               --arg branch "$BRANCH" '{
                 query: "mutation($eid: String!, $sid: String!, $input: ServiceInstanceUpdateInput!) { serviceInstanceUpdate(environmentId: $eid, serviceId: $sid, input: $input) }",
                 variables: { eid: $eid, sid: $sid, input: { source: { repo: $repo, branch: $branch } } }
-              }')" | jq -e '.data.serviceInstanceUpdate' >/dev/null
+              }')")
+          echo "::group::serviceInstanceUpdate (peer service) response"
+          echo "$RESP"
+          echo "::endgroup::"
+          echo "$RESP" | jq -e '.data.serviceInstanceUpdate != null' >/dev/null
 
       - name: Trigger deploy for my service
         if: github.event.action != 'closed'
@@ -165,7 +173,7 @@ jobs:
           ENV_ID: ${{ steps.env.outputs.id }}
         run: |
           set -euo pipefail
-          curl -sf -X POST "$RAILWAY_API" \
+          RESP=$(curl -sS -X POST "$RAILWAY_API" \
             -H "Project-Access-Token: $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
@@ -173,7 +181,11 @@ jobs:
               --arg sid "$MY_SERVICE_ID" '{
                 query: "mutation($eid: String!, $sid: String!) { serviceInstanceDeploy(environmentId: $eid, serviceId: $sid) }",
                 variables: { eid: $eid, sid: $sid }
-              }')" | jq -e '.data.serviceInstanceDeploy' >/dev/null
+              }')")
+          echo "::group::serviceInstanceDeploy response"
+          echo "$RESP"
+          echo "::endgroup::"
+          echo "$RESP" | jq -e '.data.serviceInstanceDeploy != null' >/dev/null
 
       - name: Comment env link on PR
         if: github.event.action == 'opened' && steps.env.outputs.id != ''
